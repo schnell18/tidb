@@ -14,16 +14,18 @@
 # Builder image
 FROM golang:1.16-alpine as builder
 
+ARG APK_MIRROR="mirrors.tuna.tsinghua.edu.cn"
+# switch to local mirror
+RUN sed -i "s/dl-cdn.alpinelinux.org/${APK_MIRROR}/g" /etc/apk/repositories
+
 RUN apk add --no-cache \
     wget \
     make \
     git \
     gcc \
     binutils-gold \
+    dumb-init \
     musl-dev
-
-RUN wget -O /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.2/dumb-init_1.2.2_amd64 \
- && chmod +x /usr/local/bin/dumb-init
 
 RUN mkdir -p /go/src/github.com/pingcap/tidb
 WORKDIR /go/src/github.com/pingcap/tidb
@@ -39,13 +41,16 @@ COPY . .
 RUN make
 
 # Executable image
-FROM alpine
+FROM alpine:3.14
 
-RUN apk add --no-cache \
-    curl
+ARG APK_MIRROR="mirrors.tuna.tsinghua.edu.cn"
+# switch to local mirror
+RUN sed -i "s/dl-cdn.alpinelinux.org/${APK_MIRROR}/g" /etc/apk/repositories
+
+RUN apk add --no-cache curl mysql-client
 
 COPY --from=builder /go/src/github.com/pingcap/tidb/bin/tidb-server /tidb-server
-COPY --from=builder /usr/local/bin/dumb-init /usr/local/bin/dumb-init
+COPY --from=builder /usr/bin/dumb-init /usr/local/bin/dumb-init
 
 WORKDIR /
 
